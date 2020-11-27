@@ -18,7 +18,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "driver/can.h"
+#include "driver/twai.h"    // two-wire automotive interface, i.e. CAN
 #include "driver/gpio.h"
 
 bool update_bms_received = false;
@@ -29,10 +29,10 @@ bool update_mppt_received = false;
 // buffer for JSON string generated from received data objects via CAN
 static char json_buf[500];
 
-static const can_timing_config_t t_config = CAN_TIMING_CONFIG_250KBITS();
-static const can_filter_config_t f_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
-static const can_general_config_t g_config =
-    CAN_GENERAL_CONFIG_DEFAULT(CONFIG_GPIO_CAN_TX, CONFIG_GPIO_CAN_RX, CAN_MODE_NORMAL);
+static const twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
+static const twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+static const twai_general_config_t g_config =
+    TWAI_GENERAL_CONFIG_DEFAULT(CONFIG_GPIO_CAN_TX, CONFIG_GPIO_CAN_RX, TWAI_MODE_NORMAL);
 
 DataObject data_obj_bms[] = {
     {0x70, "Bat_V",     {0}, 0},
@@ -184,7 +184,7 @@ void can_setup()
     gpio_set_level(CONFIG_GPIO_CAN_STB, 0);
 #endif
 
-    if (can_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
+    if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
         printf("CAN driver installed\n");
     }
     else {
@@ -192,7 +192,7 @@ void can_setup()
         return;
     }
 
-    if (can_start() == ESP_OK) {
+    if (twai_start() == ESP_OK) {
         printf("CAN driver started\n");
     }
     else {
@@ -203,13 +203,13 @@ void can_setup()
 
 void can_receive_task(void *arg)
 {
-    can_message_t message;
+    twai_message_t message;
     //unsigned int msg_priority;        // currently not used
     unsigned int node_id;
     unsigned int data_object_id;
 
     while (1) {
-        if (can_receive(&message, pdMS_TO_TICKS(10000)) == ESP_OK) {
+        if (twai_receive(&message, pdMS_TO_TICKS(10000)) == ESP_OK) {
 
             // ThingSet publication message format: https://thingset.github.io/spec/can
             //msg_priority = message.identifier >> 26;
@@ -237,7 +237,7 @@ void can_receive_task(void *arg)
 
             printf("CAN msg node %u, data object 0x%.2x = 0x",
                 node_id, data_object_id);
-            if (!(message.flags & CAN_MSG_FLAG_RTR)) {
+            if (!(message.flags & TWAI_MSG_FLAG_RTR)) {
                 for (int i = 0; i < message.data_length_code; i++) {
                     printf("%.2x", message.data[i]);
                 }
